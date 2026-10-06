@@ -1,0 +1,19 @@
+{
+  "name": "lumiverse-tracker-scrubber",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "npm run typecheck && npm run build:backend && npm run build:frontend",
+    "build:backend": "esbuild src/backend.ts --bundle --format=esm --platform=node --target=esnext --outfile=dist/backend.js",
+    "build:frontend": "esbuild src/frontend.ts --bundle --format=esm --platform=browser --target=esnext --outfile=dist/frontend.js",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test tests/*.test.ts"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.10",
+    "lumiverse-spindle-types": "^0.1.0",
+    "tsx": "^4.20.5",
+    "typescript": "^5.9.3"
+  }
+}

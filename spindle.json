@@ -1,0 +1,13 @@
+{
+  "version": "1.0.0",
+  "name": "Tracker Scrubber",
+  "identifier": "tracker_scrubber",
+  "author": "Ken",
+  "github": "https://github.com/WanderingMonk8/tracker_scrubber",
+  "homepage": "https://github.com/WanderingMonk8/tracker_scrubber",
+  "description": "Remove preset-specific tracker blocks from recent messages in the active chat.",
+  "permissions": ["chats", "chat_mutation"],
+  "entry_backend": "dist/backend.js",
+  "entry_frontend": "dist/frontend.js",
+  "minimum_lumiverse_version": "0.1.0"
+}
