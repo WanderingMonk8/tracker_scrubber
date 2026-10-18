@@ -2,7 +2,7 @@ import type {
   SpindleDrawerTabHandle,
   SpindleFrontendContext,
 } from 'lumiverse-spindle-types'
-import { parseTagPairs } from './scrubber'
+import { parseTagNames } from './scrubber'
 
 type CurrentDrawerTabOptions = {
   id: string
@@ -32,7 +32,7 @@ type CurrentFrontendContext = Omit<SpindleFrontendContext, 'ui'> & {
 
 type Config = {
   messageLimit: number
-  tagPairs: string
+  tagNames: string
 }
 
 type BackendPayload = {
@@ -49,7 +49,7 @@ type BackendPayload = {
   }
 }
 
-const DEFAULT_CONFIG: Config = { messageLimit: 20, tagPairs: '' }
+const DEFAULT_CONFIG: Config = { messageLimit: 20, tagNames: '' }
 
 function makeElement<K extends keyof HTMLElementTagNameMap>(
   tagName: K,
@@ -181,15 +181,15 @@ export function setup(ctx: CurrentFrontendContext) {
 
   const tagsField = makeElement('div', 'tracker-scrubber__field')
   const tagsLabel = makeElement('label', 'tracker-scrubber__label')
-  tagsLabel.textContent = 'Tracker tag pairs'
+  tagsLabel.textContent = 'Tracker tags'
   const tagsInput = makeElement('textarea')
   tagsInput.id = 'tracker-scrubber-tags'
-  tagsInput.placeholder = '<tracker></tracker>, <state></state>'
+  tagsInput.placeholder = 'tracker, state, details'
   tagsInput.spellcheck = false
   tagsLabel.htmlFor = tagsInput.id
   const tagsHint = makeElement('span', 'tracker-scrubber__hint')
   tagsHint.textContent =
-    'Separate complete tag pairs with commas. Changes save automatically. Matching is case-insensitive and includes multiline contents.'
+    'Enter tag names only, separated by commas. Changes save automatically. Matching is case-insensitive and includes multiline contents.'
   tagsField.append(tagsLabel, tagsInput, tagsHint)
 
   const scrubButton = makeElement('button', 'tracker-scrubber__button')
@@ -210,7 +210,7 @@ export function setup(ctx: CurrentFrontendContext) {
 
   const readConfig = (): Config => ({
     messageLimit: Math.min(1000, Math.max(1, Math.trunc(Number(limitInput.value) || 20))),
-    tagPairs: tagsInput.value,
+    tagNames: tagsInput.value,
   })
 
   const setStatus = (message: string, kind: 'info' | 'success' | 'error' = 'info') => {
@@ -235,8 +235,8 @@ export function setup(ctx: CurrentFrontendContext) {
     limitInput.value = String(config.messageLimit)
 
     try {
-      const tags = parseTagPairs(config.tagPairs)
-      if (tags.length === 0) throw new Error('Enter at least one complete tag pair.')
+      const tags = parseTagNames(config.tagNames)
+      if (tags.length === 0) throw new Error('Enter at least one tag name.')
     } catch (error) {
       setStatus(error instanceof Error ? error.message : String(error), 'error')
       tagsInput.focus()
@@ -270,7 +270,7 @@ export function setup(ctx: CurrentFrontendContext) {
 
     if (payload.type === 'config' && payload.config && !hasUserEdited) {
       limitInput.value = String(payload.config.messageLimit ?? DEFAULT_CONFIG.messageLimit)
-      tagsInput.value = payload.config.tagPairs ?? ''
+      tagsInput.value = payload.config.tagNames ?? ''
       return
     }
 

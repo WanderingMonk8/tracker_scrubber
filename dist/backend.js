@@ -1,32 +1,15 @@
 // src/scrubber.ts
-var TAG_NAME = "[A-Za-z_][A-Za-z0-9_.:-]*";
-function parseTagPairs(input) {
+var TAG_NAME_PATTERN = /^[A-Za-z_][A-Za-z0-9_.:-]*$/;
+function parseTagNames(input) {
   const source = input.trim();
   if (!source) return [];
-  const pairPattern = new RegExp(
-    `<(${TAG_NAME})(?:\\s[^<>]*?)?>[\\s\\S]*?<\\/\\1\\s*>`,
-    "gi"
-  );
-  const names = [];
-  let cursor = 0;
-  let match;
-  while ((match = pairPattern.exec(source)) !== null) {
-    const separator = source.slice(cursor, match.index);
-    const validSeparator = names.length === 0 ? /^\s*$/.test(separator) : /^\s*,\s*$/.test(separator);
-    if (!validSeparator) {
-      throw new Error(
-        "Separate tracker pairs with commas, for example <tracker></tracker>, <state></state>."
-      );
-    }
-    names.push(match[1].toLowerCase());
-    cursor = pairPattern.lastIndex;
-  }
-  if (names.length === 0 || !/^\s*$/.test(source.slice(cursor))) {
+  const names = source.split(",").map((name) => name.trim());
+  if (names.some((name) => !TAG_NAME_PATTERN.test(name))) {
     throw new Error(
-      "Use complete tag pairs separated by commas, such as <tracker></tracker>, <state></state>."
+      "Enter tag names without < or >, separated by commas\u2014for example: tracker, state, details."
     );
   }
-  return [...new Set(names)];
+  return [...new Set(names.map((name) => name.toLowerCase()))];
 }
 function scrubTaggedBlocks(text, tagNames) {
   let scrubbed = text;
@@ -49,7 +32,7 @@ function scrubTaggedBlocks(text, tagNames) {
 var CONFIG_PATH = "config.json";
 var DEFAULT_CONFIG = {
   messageLimit: 20,
-  tagPairs: ""
+  tagNames: ""
 };
 var MAX_MESSAGES = 1e3;
 function normalizeConfig(value) {
@@ -57,10 +40,23 @@ function normalizeConfig(value) {
   const candidate = value;
   const numericLimit = Number(candidate.messageLimit);
   const messageLimit = Number.isFinite(numericLimit) ? Math.min(MAX_MESSAGES, Math.max(1, Math.trunc(numericLimit))) : DEFAULT_CONFIG.messageLimit;
+  const storedTagNames = typeof candidate.tagNames === "string" ? candidate.tagNames : typeof candidate.tagPairs === "string" ? migrateLegacyTagPairs(candidate.tagPairs) : "";
   return {
     messageLimit,
-    tagPairs: typeof candidate.tagPairs === "string" ? candidate.tagPairs : ""
+    tagNames: storedTagNames
   };
+}
+function migrateLegacyTagPairs(input) {
+  if (!input.includes("<") && !input.includes(">")) return input;
+  const names = [];
+  const legacyPair = /<([A-Za-z_][A-Za-z0-9_.:-]*)(?:\s[^<>]*?)?>[\s\S]*?<\/\1\s*>/gi;
+  let remainder = input;
+  let match;
+  while ((match = legacyPair.exec(input)) !== null) {
+    names.push(match[1].toLowerCase());
+    remainder = remainder.replace(match[0], "");
+  }
+  return names.length > 0 && /^[\s,]*$/.test(remainder) ? [...new Set(names)].join(", ") : input;
 }
 function errorMessage(error) {
   return error instanceof Error ? error.message : String(error);
@@ -76,9 +72,9 @@ async function saveConfig(config, userId) {
   await spindle.userStorage.setJson(CONFIG_PATH, config, { indent: 2, userId });
 }
 async function scrubActiveChat(config, userId) {
-  const tagNames = parseTagPairs(config.tagPairs);
+  const tagNames = parseTagNames(config.tagNames);
   if (tagNames.length === 0) {
-    throw new Error("Enter at least one complete tag pair before scrubbing.");
+    throw new Error("Enter at least one tag name before scrubbing.");
   }
   const activeChat = await spindle.chats.getActive(userId);
   if (!activeChat) {

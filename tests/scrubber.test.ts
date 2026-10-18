@@ -1,29 +1,33 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { parseTagPairs, scrubTaggedBlocks } from '../src/scrubber'
+import { parseTagNames, scrubTaggedBlocks } from '../src/scrubber'
 
-test('parses multiple tag pairs and removes duplicates case-insensitively', () => {
+test('parses comma-separated tag names and removes duplicates case-insensitively', () => {
   assert.deepEqual(
-    parseTagPairs('<tracker></tracker>, <STATE>example</STATE>, <tracker></tracker>'),
+    parseTagNames('tracker, STATE, tracker'),
     ['tracker', 'state'],
   )
 })
 
-test('requires commas between different tracker pairs', () => {
+test('requires commas between different tag names', () => {
   assert.throws(
-    () => parseTagPairs('<tracker></tracker>\n<state></state>'),
-    /Separate tracker pairs with commas/,
+    () => parseTagNames('tracker state'),
+    /separated by commas/,
   )
   assert.throws(
-    () => parseTagPairs('<tracker></tracker>; <state></state>'),
-    /Separate tracker pairs with commas/,
+    () => parseTagNames('tracker; state'),
+    /separated by commas/,
   )
 })
 
-test('rejects incomplete tag pairs', () => {
+test('rejects markup and empty comma-separated entries', () => {
   assert.throws(
-    () => parseTagPairs('<tracker>'),
-    /complete tag pairs/,
+    () => parseTagNames('<tracker></tracker>'),
+    /without < or >/,
+  )
+  assert.throws(
+    () => parseTagNames('tracker,,state'),
+    /separated by commas/,
   )
 })
 

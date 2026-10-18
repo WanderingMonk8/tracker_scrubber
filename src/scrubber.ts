@@ -3,50 +3,24 @@ export type ScrubResult = {
   removed: number
 }
 
-const TAG_NAME = '[A-Za-z_][A-Za-z0-9_.:-]*'
+const TAG_NAME_PATTERN = /^[A-Za-z_][A-Za-z0-9_.:-]*$/
 
 /**
- * Parse one or more explicit tag pairs, for example:
- *   <tracker></tracker>, <state>optional example text</state>
- *
- * Different pairs must be comma-separated. Only the tag name is retained;
- * attributes in actual chat messages are still matched.
+ * Parse comma-separated tag names, for example: tracker, state, details.
+ * Users never need to enter angle brackets or closing tags.
  */
-export function parseTagPairs(input: string): string[] {
+export function parseTagNames(input: string): string[] {
   const source = input.trim()
   if (!source) return []
 
-  const pairPattern = new RegExp(
-    `<(${TAG_NAME})(?:\\s[^<>]*?)?>[\\s\\S]*?<\\/\\1\\s*>`,
-    'gi',
-  )
-  const names: string[] = []
-  let cursor = 0
-  let match: RegExpExecArray | null
-
-  while ((match = pairPattern.exec(source)) !== null) {
-    const separator = source.slice(cursor, match.index)
-    const validSeparator = names.length === 0
-      ? /^\s*$/.test(separator)
-      : /^\s*,\s*$/.test(separator)
-
-    if (!validSeparator) {
-      throw new Error(
-        'Separate tracker pairs with commas, for example <tracker></tracker>, <state></state>.',
-      )
-    }
-
-    names.push(match[1].toLowerCase())
-    cursor = pairPattern.lastIndex
-  }
-
-  if (names.length === 0 || !/^\s*$/.test(source.slice(cursor))) {
+  const names = source.split(',').map((name) => name.trim())
+  if (names.some((name) => !TAG_NAME_PATTERN.test(name))) {
     throw new Error(
-      'Use complete tag pairs separated by commas, such as <tracker></tracker>, <state></state>.',
+      'Enter tag names without < or >, separated by commas—for example: tracker, state, details.',
     )
   }
 
-  return [...new Set(names)]
+  return [...new Set(names.map((name) => name.toLowerCase()))]
 }
 
 export function scrubTaggedBlocks(text: string, tagNames: readonly string[]): ScrubResult {

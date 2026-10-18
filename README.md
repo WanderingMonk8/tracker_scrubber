@@ -5,10 +5,10 @@ Tracker Scrubber removes preset-specific tracker blocks from recent messages in 
 ## Features
 
 - Scans the newest 20 messages by default, working backwards. The limit is configurable from 1 to 1,000.
-- Accepts multiple complete tag pairs separated by commas, such as:
+- Accepts plain tag names separated by commas—users do not enter angle brackets or closing tags:
 
   ```text
-  <tracker></tracker>, <state></state>, <inventory></inventory>
+  tracker, state, inventory
   ```
 
 - Removes each matching tag, all content inside it, and the closing tag. Matching is case-insensitive, spans multiple lines, and accepts attributes such as `<tracker type="status">`.
@@ -38,7 +38,7 @@ Grant the requested permissions:
 - `chats` — identifies the active chat.
 - `chat_mutation` — reads and edits messages in that chat.
 
-Open the **Tracker Scrubber** drawer tab, set the number of recent messages, enter comma-separated tracker pairs, and select **Scrub active chat**. Input is saved automatically.
+Open the **Tracker Scrubber** drawer tab, set the number of recent messages, enter comma-separated tag names (for example, `tracker, state, details`), and select **Scrub active chat**. Input is saved automatically.
 
 > Scrubbing edits chat history permanently. Export or back up important chats first.
 

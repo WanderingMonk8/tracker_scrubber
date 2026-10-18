@@ -1,36 +1,19 @@
 // src/scrubber.ts
-var TAG_NAME = "[A-Za-z_][A-Za-z0-9_.:-]*";
-function parseTagPairs(input) {
+var TAG_NAME_PATTERN = /^[A-Za-z_][A-Za-z0-9_.:-]*$/;
+function parseTagNames(input) {
   const source = input.trim();
   if (!source) return [];
-  const pairPattern = new RegExp(
-    `<(${TAG_NAME})(?:\\s[^<>]*?)?>[\\s\\S]*?<\\/\\1\\s*>`,
-    "gi"
-  );
-  const names = [];
-  let cursor = 0;
-  let match;
-  while ((match = pairPattern.exec(source)) !== null) {
-    const separator = source.slice(cursor, match.index);
-    const validSeparator = names.length === 0 ? /^\s*$/.test(separator) : /^\s*,\s*$/.test(separator);
-    if (!validSeparator) {
-      throw new Error(
-        "Separate tracker pairs with commas, for example <tracker></tracker>, <state></state>."
-      );
-    }
-    names.push(match[1].toLowerCase());
-    cursor = pairPattern.lastIndex;
-  }
-  if (names.length === 0 || !/^\s*$/.test(source.slice(cursor))) {
+  const names = source.split(",").map((name) => name.trim());
+  if (names.some((name) => !TAG_NAME_PATTERN.test(name))) {
     throw new Error(
-      "Use complete tag pairs separated by commas, such as <tracker></tracker>, <state></state>."
+      "Enter tag names without < or >, separated by commas\u2014for example: tracker, state, details."
     );
   }
-  return [...new Set(names)];
+  return [...new Set(names.map((name) => name.toLowerCase()))];
 }
 
 // src/frontend.ts
-var DEFAULT_CONFIG = { messageLimit: 20, tagPairs: "" };
+var DEFAULT_CONFIG = { messageLimit: 20, tagNames: "" };
 function makeElement(tagName, className) {
   const element = document.createElement(tagName);
   if (className) element.className = className;
@@ -149,14 +132,14 @@ function setup(ctx) {
   limitField.append(limitLabel, limitInput, limitHint);
   const tagsField = makeElement("div", "tracker-scrubber__field");
   const tagsLabel = makeElement("label", "tracker-scrubber__label");
-  tagsLabel.textContent = "Tracker tag pairs";
+  tagsLabel.textContent = "Tracker tags";
   const tagsInput = makeElement("textarea");
   tagsInput.id = "tracker-scrubber-tags";
-  tagsInput.placeholder = "<tracker></tracker>, <state></state>";
+  tagsInput.placeholder = "tracker, state, details";
   tagsInput.spellcheck = false;
   tagsLabel.htmlFor = tagsInput.id;
   const tagsHint = makeElement("span", "tracker-scrubber__hint");
-  tagsHint.textContent = "Separate complete tag pairs with commas. Changes save automatically. Matching is case-insensitive and includes multiline contents.";
+  tagsHint.textContent = "Enter tag names only, separated by commas. Changes save automatically. Matching is case-insensitive and includes multiline contents.";
   tagsField.append(tagsLabel, tagsInput, tagsHint);
   const scrubButton = makeElement("button", "tracker-scrubber__button");
   scrubButton.type = "button";
@@ -172,7 +155,7 @@ function setup(ctx) {
   let requestTimer;
   const readConfig = () => ({
     messageLimit: Math.min(1e3, Math.max(1, Math.trunc(Number(limitInput.value) || 20))),
-    tagPairs: tagsInput.value
+    tagNames: tagsInput.value
   });
   const setStatus = (message, kind = "info") => {
     status.textContent = message;
@@ -192,8 +175,8 @@ function setup(ctx) {
     const config = readConfig();
     limitInput.value = String(config.messageLimit);
     try {
-      const tags = parseTagPairs(config.tagPairs);
-      if (tags.length === 0) throw new Error("Enter at least one complete tag pair.");
+      const tags = parseTagNames(config.tagNames);
+      if (tags.length === 0) throw new Error("Enter at least one tag name.");
     } catch (error) {
       setStatus(error instanceof Error ? error.message : String(error), "error");
       tagsInput.focus();
@@ -220,7 +203,7 @@ function setup(ctx) {
     const payload = rawPayload && typeof rawPayload === "object" ? rawPayload : {};
     if (payload.type === "config" && payload.config && !hasUserEdited) {
       limitInput.value = String(payload.config.messageLimit ?? DEFAULT_CONFIG.messageLimit);
-      tagsInput.value = payload.config.tagPairs ?? "";
+      tagsInput.value = payload.config.tagNames ?? "";
       return;
     }
     if ((payload.type === "scrub_result" || payload.type === "scrub_error") && payload.requestId !== pendingRequestId) {

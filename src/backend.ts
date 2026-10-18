@@ -1,5 +1,5 @@
 import type { SpindleAPI } from 'lumiverse-spindle-types'
-import { parseTagPairs, scrubTaggedBlocks } from './scrubber'
+import { parseTagNames, scrubTaggedBlocks } from './scrubber'
 
 type CurrentChatMessage = {
   id: string
@@ -37,7 +37,7 @@ declare const spindle: CurrentSpindleAPI
 
 type TrackerScrubberConfig = {
   messageLimit: number
-  tagPairs: string
+  tagNames: string
 }
 
 type FrontendPayload = {
@@ -49,23 +49,47 @@ type FrontendPayload = {
 const CONFIG_PATH = 'config.json'
 const DEFAULT_CONFIG: TrackerScrubberConfig = {
   messageLimit: 20,
-  tagPairs: '',
+  tagNames: '',
 }
 const MAX_MESSAGES = 1000
 
 function normalizeConfig(value: unknown): TrackerScrubberConfig {
   if (!value || typeof value !== 'object') return { ...DEFAULT_CONFIG }
 
-  const candidate = value as Partial<TrackerScrubberConfig>
+  const candidate = value as Partial<TrackerScrubberConfig> & { tagPairs?: unknown }
   const numericLimit = Number(candidate.messageLimit)
   const messageLimit = Number.isFinite(numericLimit)
     ? Math.min(MAX_MESSAGES, Math.max(1, Math.trunc(numericLimit)))
     : DEFAULT_CONFIG.messageLimit
 
+  const storedTagNames = typeof candidate.tagNames === 'string'
+    ? candidate.tagNames
+    : typeof candidate.tagPairs === 'string'
+      ? migrateLegacyTagPairs(candidate.tagPairs)
+      : ''
+
   return {
     messageLimit,
-    tagPairs: typeof candidate.tagPairs === 'string' ? candidate.tagPairs : '',
+    tagNames: storedTagNames,
   }
+}
+
+function migrateLegacyTagPairs(input: string): string {
+  if (!input.includes('<') && !input.includes('>')) return input
+
+  const names: string[] = []
+  const legacyPair = /<([A-Za-z_][A-Za-z0-9_.:-]*)(?:\s[^<>]*?)?>[\s\S]*?<\/\1\s*>/gi
+  let remainder = input
+  let match: RegExpExecArray | null
+
+  while ((match = legacyPair.exec(input)) !== null) {
+    names.push(match[1].toLowerCase())
+    remainder = remainder.replace(match[0], '')
+  }
+
+  return names.length > 0 && /^[\s,]*$/.test(remainder)
+    ? [...new Set(names)].join(', ')
+    : input
 }
 
 function errorMessage(error: unknown): string {
@@ -85,9 +109,9 @@ async function saveConfig(config: TrackerScrubberConfig, userId: string): Promis
 }
 
 async function scrubActiveChat(config: TrackerScrubberConfig, userId: string) {
-  const tagNames = parseTagPairs(config.tagPairs)
+  const tagNames = parseTagNames(config.tagNames)
   if (tagNames.length === 0) {
-    throw new Error('Enter at least one complete tag pair before scrubbing.')
+    throw new Error('Enter at least one tag name before scrubbing.')
   }
 
   const activeChat = await spindle.chats.getActive(userId)
