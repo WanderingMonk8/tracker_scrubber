@@ -2,7 +2,7 @@ import type {
   SpindleDrawerTabHandle,
   SpindleFrontendContext,
 } from 'lumiverse-spindle-types'
-import { parseTagNames } from './scrubber'
+import { parseTagPairs } from './scrubber'
 
 type CurrentDrawerTabOptions = {
   id: string
@@ -184,12 +184,12 @@ export function setup(ctx: CurrentFrontendContext) {
   tagsLabel.textContent = 'Tracker tags'
   const tagsInput = makeElement('textarea')
   tagsInput.id = 'tracker-scrubber-tags'
-  tagsInput.placeholder = 'tracker, state, details'
+  tagsInput.placeholder = 'tracker, state, o_ledger/o_l'
   tagsInput.spellcheck = false
   tagsLabel.htmlFor = tagsInput.id
   const tagsHint = makeElement('span', 'tracker-scrubber__hint')
   tagsHint.textContent =
-    'Enter tag names only, separated by commas. Changes save automatically. Matching is case-insensitive and includes multiline contents.'
+    'Enter tag names only, separated by commas. Use open/close for tags that close with a different name (for example, o_ledger/o_l). Changes save automatically. Matching is case-insensitive and includes multiline contents.'
   tagsField.append(tagsLabel, tagsInput, tagsHint)
 
   const scrubButton = makeElement('button', 'tracker-scrubber__button')
@@ -235,7 +235,7 @@ export function setup(ctx: CurrentFrontendContext) {
     limitInput.value = String(config.messageLimit)
 
     try {
-      const tags = parseTagNames(config.tagNames)
+      const tags = parseTagPairs(config.tagNames)
       if (tags.length === 0) throw new Error('Enter at least one tag name.')
     } catch (error) {
       setStatus(error instanceof Error ? error.message : String(error), 'error')

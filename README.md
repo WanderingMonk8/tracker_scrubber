@@ -11,6 +11,14 @@ Tracker Scrubber removes preset-specific tracker blocks from recent messages in 
   tracker, state, inventory
   ```
 
+- Supports asymmetric tags whose opening and closing names differ by writing `open/close`:
+
+  ```text
+  o_ledger/o_l
+  ```
+
+  This removes `<o_ledger>...</o_l>` blocks.
+
 - Removes each matching tag, all content inside it, and the closing tag. Matching is case-insensitive, spans multiple lines, and accepts attributes such as `<tracker type="status">`.
 - Scrubs every swipe variant belonging to each scanned message, not only the currently selected swipe.
 - Resolves the active chat at scrub time and never reads or modifies messages from any other chat. If the active chat changes while a scrub is running, the operation stops.
@@ -38,7 +46,7 @@ Grant the requested permissions:
 - `chats` — identifies the active chat.
 - `chat_mutation` — reads and edits messages in that chat.
 
-Open the **Tracker Scrubber** drawer tab, set the number of recent messages, enter comma-separated tag names (for example, `tracker, state, details`), and select **Scrub active chat**. Input is saved automatically.
+Open the **Tracker Scrubber** drawer tab, set the number of recent messages, enter comma-separated tag names (for example, `tracker, state, details`) or asymmetric pairs (for example, `o_ledger/o_l`), and select **Scrub active chat**. Input is saved automatically.
 
 > Scrubbing edits chat history permanently. Export or back up important chats first.
 

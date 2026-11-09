@@ -1,23 +1,39 @@
 // src/scrubber.ts
 var TAG_NAME_PATTERN = /^[A-Za-z_][A-Za-z0-9_.:-]*$/;
-function parseTagNames(input) {
+function parseTagPairs(input) {
   const source = input.trim();
   if (!source) return [];
-  const names = source.split(",").map((name) => name.trim());
-  if (names.some((name) => !TAG_NAME_PATTERN.test(name))) {
-    throw new Error(
-      "Enter tag names without < or >, separated by commas\u2014for example: tracker, state, details."
-    );
+  const pairs = [];
+  const seen = /* @__PURE__ */ new Set();
+  for (const entry of source.split(",")) {
+    const parts = entry.trim().split("/").map((part) => part.trim());
+    if (parts.length > 2 || parts.some((part) => !TAG_NAME_PATTERN.test(part))) {
+      throw new Error(
+        "Enter tag names without < or >, separated by commas. For tags with different opening and closing names, use open/close\u2014for example: tracker, state, o_ledger/o_l."
+      );
+    }
+    const open = parts[0].toLowerCase();
+    const close = (parts[1] ?? parts[0]).toLowerCase();
+    const key = `${open}/${close}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    pairs.push({ open, close });
   }
-  return [...new Set(names.map((name) => name.toLowerCase()))];
+  return pairs;
 }
-function scrubTaggedBlocks(text, tagNames) {
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+function scrubTaggedBlocks(text, tagPairs) {
   let scrubbed = text;
   let removed = 0;
-  for (const tagName of tagNames) {
-    const escapedName = tagName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  for (const tagPair of tagPairs) {
+    const { open, close } = typeof tagPair === "string" ? { open: tagPair, close: tagPair } : tagPair;
+    const escapedOpen = escapeRegExp(open);
     const blockPattern = new RegExp(
-      `<${escapedName}(?:\\s[^<>]*?)?\\s*>[\\s\\S]*?<\\/${escapedName}\\s*>`,
+      // Stop at another opening tag of the same name so an unclosed or
+      // differently closed block cannot swallow the blocks that follow it.
+      `<${escapedOpen}(?:\\s[^<>]*?)?\\s*>(?:(?!<${escapedOpen}(?:\\s|>))[\\s\\S])*?<\\/${escapeRegExp(close)}\\s*>`,
       "gi"
     );
     scrubbed = scrubbed.replace(blockPattern, () => {
@@ -72,8 +88,8 @@ async function saveConfig(config, userId) {
   await spindle.userStorage.setJson(CONFIG_PATH, config, { indent: 2, userId });
 }
 async function scrubActiveChat(config, userId) {
-  const tagNames = parseTagNames(config.tagNames);
-  if (tagNames.length === 0) {
+  const tagPairs = parseTagPairs(config.tagNames);
+  if (tagPairs.length === 0) {
     throw new Error("Enter at least one tag name before scrubbing.");
   }
   const activeChat = await spindle.chats.getActive(userId);
@@ -94,7 +110,7 @@ async function scrubActiveChat(config, userId) {
       if (Array.isArray(message.swipes) && message.swipes.length > 0) {
         let messageRemoved = 0;
         const scrubbedSwipes = message.swipes.map((swipe) => {
-          const result2 = scrubTaggedBlocks(swipe, tagNames);
+          const result2 = scrubTaggedBlocks(swipe, tagPairs);
           messageRemoved += result2.removed;
           return result2.text;
         });
@@ -107,7 +123,7 @@ async function scrubActiveChat(config, userId) {
         }
         continue;
       }
-      const result = scrubTaggedBlocks(message.content, tagNames);
+      const result = scrubTaggedBlocks(message.content, tagPairs);
       if (result.removed > 0) {
         await spindle.chat.updateMessage(activeChat.id, message.id, {
           content: result.text

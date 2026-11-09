@@ -1,15 +1,25 @@
 // src/scrubber.ts
 var TAG_NAME_PATTERN = /^[A-Za-z_][A-Za-z0-9_.:-]*$/;
-function parseTagNames(input) {
+function parseTagPairs(input) {
   const source = input.trim();
   if (!source) return [];
-  const names = source.split(",").map((name) => name.trim());
-  if (names.some((name) => !TAG_NAME_PATTERN.test(name))) {
-    throw new Error(
-      "Enter tag names without < or >, separated by commas\u2014for example: tracker, state, details."
-    );
+  const pairs = [];
+  const seen = /* @__PURE__ */ new Set();
+  for (const entry of source.split(",")) {
+    const parts = entry.trim().split("/").map((part) => part.trim());
+    if (parts.length > 2 || parts.some((part) => !TAG_NAME_PATTERN.test(part))) {
+      throw new Error(
+        "Enter tag names without < or >, separated by commas. For tags with different opening and closing names, use open/close\u2014for example: tracker, state, o_ledger/o_l."
+      );
+    }
+    const open = parts[0].toLowerCase();
+    const close = (parts[1] ?? parts[0]).toLowerCase();
+    const key = `${open}/${close}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    pairs.push({ open, close });
   }
-  return [...new Set(names.map((name) => name.toLowerCase()))];
+  return pairs;
 }
 
 // src/frontend.ts
@@ -135,11 +145,11 @@ function setup(ctx) {
   tagsLabel.textContent = "Tracker tags";
   const tagsInput = makeElement("textarea");
   tagsInput.id = "tracker-scrubber-tags";
-  tagsInput.placeholder = "tracker, state, details";
+  tagsInput.placeholder = "tracker, state, o_ledger/o_l";
   tagsInput.spellcheck = false;
   tagsLabel.htmlFor = tagsInput.id;
   const tagsHint = makeElement("span", "tracker-scrubber__hint");
-  tagsHint.textContent = "Enter tag names only, separated by commas. Changes save automatically. Matching is case-insensitive and includes multiline contents.";
+  tagsHint.textContent = "Enter tag names only, separated by commas. Use open/close for tags that close with a different name (for example, o_ledger/o_l). Changes save automatically. Matching is case-insensitive and includes multiline contents.";
   tagsField.append(tagsLabel, tagsInput, tagsHint);
   const scrubButton = makeElement("button", "tracker-scrubber__button");
   scrubButton.type = "button";
@@ -175,7 +185,7 @@ function setup(ctx) {
     const config = readConfig();
     limitInput.value = String(config.messageLimit);
     try {
-      const tags = parseTagNames(config.tagNames);
+      const tags = parseTagPairs(config.tagNames);
       if (tags.length === 0) throw new Error("Enter at least one tag name.");
     } catch (error) {
       setStatus(error instanceof Error ? error.message : String(error), "error");

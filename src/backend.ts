@@ -1,5 +1,5 @@
 import type { SpindleAPI } from 'lumiverse-spindle-types'
-import { parseTagNames, scrubTaggedBlocks } from './scrubber'
+import { parseTagPairs, scrubTaggedBlocks } from './scrubber'
 
 type CurrentChatMessage = {
   id: string
@@ -109,8 +109,8 @@ async function saveConfig(config: TrackerScrubberConfig, userId: string): Promis
 }
 
 async function scrubActiveChat(config: TrackerScrubberConfig, userId: string) {
-  const tagNames = parseTagNames(config.tagNames)
-  if (tagNames.length === 0) {
+  const tagPairs = parseTagPairs(config.tagNames)
+  if (tagPairs.length === 0) {
     throw new Error('Enter at least one tag name before scrubbing.')
   }
 
@@ -138,7 +138,7 @@ async function scrubActiveChat(config: TrackerScrubberConfig, userId: string) {
       if (Array.isArray(message.swipes) && message.swipes.length > 0) {
         let messageRemoved = 0
         const scrubbedSwipes = message.swipes.map((swipe) => {
-          const result = scrubTaggedBlocks(swipe, tagNames)
+          const result = scrubTaggedBlocks(swipe, tagPairs)
           messageRemoved += result.removed
           return result.text
         })
@@ -153,7 +153,7 @@ async function scrubActiveChat(config: TrackerScrubberConfig, userId: string) {
         continue
       }
 
-      const result = scrubTaggedBlocks(message.content, tagNames)
+      const result = scrubTaggedBlocks(message.content, tagPairs)
       if (result.removed > 0) {
         await spindle.chat.updateMessage(activeChat.id, message.id, {
           content: result.text,
