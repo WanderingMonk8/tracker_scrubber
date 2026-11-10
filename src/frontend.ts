@@ -1,34 +1,5 @@
-import type {
-  SpindleDrawerTabHandle,
-  SpindleFrontendContext,
-} from 'lumiverse-spindle-types'
+import type { SpindleFrontendContext } from 'lumiverse-spindle-types'
 import { parseTagPairs } from './scrubber'
-
-type CurrentDrawerTabOptions = {
-  id: string
-  title: string
-  shortName?: string
-  description?: string
-  keywords?: string[]
-  headerTitle?: string
-  iconSvg?: string
-  iconUrl?: string
-}
-
-type CurrentFrontendContext = Omit<SpindleFrontendContext, 'ui'> & {
-  deferReady(): void
-  ready(): void
-  ui: Omit<SpindleFrontendContext['ui'], 'registerDrawerTab'> & {
-    registerDrawerTab(options: CurrentDrawerTabOptions): SpindleDrawerTabHandle
-    showConfirm(options: {
-      title: string
-      message: string
-      variant?: 'info' | 'warning' | 'danger' | 'success'
-      confirmLabel?: string
-      cancelLabel?: string
-    }): Promise<{ confirmed: boolean }>
-  }
-}
 
 type Config = {
   messageLimit: number
@@ -60,9 +31,7 @@ function makeElement<K extends keyof HTMLElementTagNameMap>(
   return element
 }
 
-// Readiness, confirmation dialogs, and expanded drawer metadata are documented
-// by current Lumiverse but have not landed in the published 0.1.9 types yet.
-export function setup(ctx: CurrentFrontendContext) {
+export function setup(ctx: SpindleFrontendContext) {
   ctx.deferReady()
 
   const removeStyle = ctx.dom.addStyle(`
@@ -205,7 +174,7 @@ export function setup(ctx: CurrentFrontendContext) {
 
   let hasUserEdited = false
   let saveTimer: number | undefined
-  let pendingRequestId: string | undefined
+  let scrubPending = false
   let requestTimer: number | undefined
 
   const readConfig = (): Config => ({
@@ -251,13 +220,13 @@ export function setup(ctx: CurrentFrontendContext) {
     })
     if (!confirmed) return
 
-    pendingRequestId = crypto.randomUUID()
+    scrubPending = true
     scrubButton.disabled = true
     setStatus('Scanning the active chat…')
-    ctx.sendToBackend({ type: 'scrub', requestId: pendingRequestId, config })
+    ctx.sendToBackend({ type: 'scrub', config })
 
     requestTimer = window.setTimeout(() => {
-      pendingRequestId = undefined
+      scrubPending = false
       scrubButton.disabled = false
       setStatus('The scrubber did not respond. Check that the extension permissions are enabled.', 'error')
     }, 30_000)
@@ -274,16 +243,20 @@ export function setup(ctx: CurrentFrontendContext) {
       return
     }
 
+    // The backend generates the correlation UUID through Spindle's UUID API.
+    // This frontend instance only needs to know whether it has a scrub in
+    // flight; results received outside that window are stale or belong to a
+    // different document.
     if (
       (payload.type === 'scrub_result' || payload.type === 'scrub_error') &&
-      payload.requestId !== pendingRequestId
+      !scrubPending
     ) {
       return
     }
 
     if (payload.type === 'scrub_error') {
       if (requestTimer !== undefined) window.clearTimeout(requestTimer)
-      pendingRequestId = undefined
+      scrubPending = false
       scrubButton.disabled = false
       setStatus(payload.error || 'Tracker Scrubber encountered an unknown error.', 'error')
       return
@@ -291,7 +264,7 @@ export function setup(ctx: CurrentFrontendContext) {
 
     if (payload.type === 'scrub_result' && payload.result) {
       if (requestTimer !== undefined) window.clearTimeout(requestTimer)
-      pendingRequestId = undefined
+      scrubPending = false
       scrubButton.disabled = false
       const result = payload.result
       const failureNote = result.failedMessages
@@ -305,7 +278,7 @@ export function setup(ctx: CurrentFrontendContext) {
   })
 
   ctx.ready()
-  ctx.sendToBackend({ type: 'get_config', requestId: crypto.randomUUID() })
+  ctx.sendToBackend({ type: 'get_config' })
 
   return () => {
     if (saveTimer !== undefined) window.clearTimeout(saveTimer)

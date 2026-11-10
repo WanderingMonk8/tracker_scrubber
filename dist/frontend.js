@@ -161,7 +161,7 @@ function setup(ctx) {
   tab.root.replaceChildren(panel);
   let hasUserEdited = false;
   let saveTimer;
-  let pendingRequestId;
+  let scrubPending = false;
   let requestTimer;
   const readConfig = () => ({
     messageLimit: Math.min(1e3, Math.max(1, Math.trunc(Number(limitInput.value) || 20))),
@@ -199,12 +199,12 @@ function setup(ctx) {
       confirmLabel: "Scrub messages"
     });
     if (!confirmed) return;
-    pendingRequestId = crypto.randomUUID();
+    scrubPending = true;
     scrubButton.disabled = true;
     setStatus("Scanning the active chat\u2026");
-    ctx.sendToBackend({ type: "scrub", requestId: pendingRequestId, config });
+    ctx.sendToBackend({ type: "scrub", config });
     requestTimer = window.setTimeout(() => {
-      pendingRequestId = void 0;
+      scrubPending = false;
       scrubButton.disabled = false;
       setStatus("The scrubber did not respond. Check that the extension permissions are enabled.", "error");
     }, 3e4);
@@ -216,19 +216,19 @@ function setup(ctx) {
       tagsInput.value = payload.config.tagNames ?? "";
       return;
     }
-    if ((payload.type === "scrub_result" || payload.type === "scrub_error") && payload.requestId !== pendingRequestId) {
+    if ((payload.type === "scrub_result" || payload.type === "scrub_error") && !scrubPending) {
       return;
     }
     if (payload.type === "scrub_error") {
       if (requestTimer !== void 0) window.clearTimeout(requestTimer);
-      pendingRequestId = void 0;
+      scrubPending = false;
       scrubButton.disabled = false;
       setStatus(payload.error || "Tracker Scrubber encountered an unknown error.", "error");
       return;
     }
     if (payload.type === "scrub_result" && payload.result) {
       if (requestTimer !== void 0) window.clearTimeout(requestTimer);
-      pendingRequestId = void 0;
+      scrubPending = false;
       scrubButton.disabled = false;
       const result = payload.result;
       const failureNote = result.failedMessages ? ` ${result.failedMessages} message(s) could not be updated.` : "";
@@ -239,7 +239,7 @@ function setup(ctx) {
     }
   });
   ctx.ready();
-  ctx.sendToBackend({ type: "get_config", requestId: crypto.randomUUID() });
+  ctx.sendToBackend({ type: "get_config" });
   return () => {
     if (saveTimer !== void 0) window.clearTimeout(saveTimer);
     if (requestTimer !== void 0) window.clearTimeout(requestTimer);

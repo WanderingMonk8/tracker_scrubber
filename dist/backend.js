@@ -147,11 +147,11 @@ async function scrubActiveChat(config, userId) {
 }
 spindle.onFrontendMessage(async (rawPayload, userId) => {
   const payload = rawPayload && typeof rawPayload === "object" ? rawPayload : {};
-  const requestId = typeof payload.requestId === "string" ? payload.requestId : void 0;
+  let responseRequestId;
   try {
     if (payload.type === "get_config") {
       const config = await loadConfig(userId);
-      spindle.sendToFrontend({ type: "config", requestId, config }, userId);
+      spindle.sendToFrontend({ type: "config", config }, userId);
       return;
     }
     if (payload.type === "save_config") {
@@ -159,15 +159,16 @@ spindle.onFrontendMessage(async (rawPayload, userId) => {
       return;
     }
     if (payload.type === "scrub") {
+      responseRequestId = await spindle.uuid.v7();
       const config = normalizeConfig(payload.config);
       await saveConfig(config, userId);
       const result = await scrubActiveChat(config, userId);
-      spindle.sendToFrontend({ type: "scrub_result", requestId, result }, userId);
+      spindle.sendToFrontend({ type: "scrub_result", requestId: responseRequestId, result }, userId);
     }
   } catch (error) {
     spindle.log.error(`Tracker Scrubber error: ${errorMessage(error)}`);
     spindle.sendToFrontend(
-      { type: "scrub_error", requestId, error: errorMessage(error) },
+      { type: "scrub_error", requestId: responseRequestId, error: errorMessage(error) },
       userId
     );
   }

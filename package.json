@@ -12,7 +12,7 @@
   },
   "devDependencies": {
     "esbuild": "^0.25.10",
-    "lumiverse-spindle-types": "^0.1.0",
+    "lumiverse-spindle-types": "^0.6.79",
     "tsx": "^4.20.5",
     "typescript": "^5.9.3"
   }
